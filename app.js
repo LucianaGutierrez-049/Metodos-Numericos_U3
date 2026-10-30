@@ -1,0 +1,60 @@
+'use strict';
+// Analizador matemático: no ejecuta JavaScript ingresado por el usuario.
+function parseExpression(source, allowVariable=true){
+ const text=source.toLowerCase().replace(/π/g,'pi').replace(/−/g,'-').replace(/\*\*/g,'^');
+ if(text.length>500)throw Error('La expresión es demasiado larga (máximo 500 caracteres).');
+ const re=/\s*(?:(\d+(?:\.\d*)?(?:e[+-]?\d+)?|\.\d+(?:e[+-]?\d+)?)|([a-z]+)|([+\-*/^()]))/gy;
+ const tokens=[];let pos=0;
+ while(pos<text.length){if(!text.slice(pos).trim())break;re.lastIndex=pos;const m=re.exec(text);if(!m)throw Error('Símbolo no válido cerca de: '+text.slice(pos,pos+15));tokens.push(m[1]?{type:'number',value:Number(m[1])}:{type:m[2]?'name':m[3],value:m[2]||m[3]});pos=re.lastIndex;}
+ let i=0;const peek=()=>tokens[i]?.type;const eat=t=>{if(peek()!==t)throw Error('Se esperaba '+t+'. Revisa paréntesis y operadores.');return tokens[i++];};
+ const funcs={sin:Math.sin,sen:Math.sin,cos:Math.cos,tan:Math.tan,exp:Math.exp,ln:Math.log,log:Math.log,sqrt:Math.sqrt,abs:Math.abs};
+ function primary(){if(peek()==='number'){const v=eat('number').value;return()=>v;}if(peek()==='('){eat('(');const f=add();eat(')');return f;}if(peek()==='name'){const name=eat('name').value;if(name==='pi')return()=>Math.PI;if(name==='e')return()=>Math.E;if(name==='x'||name==='t'){if(!allowVariable)throw Error('En este campo ingresa una constante, sin x ni t.');return x=>x;}if(!Object.hasOwn(funcs,name))throw Error('Función desconocida: '+name);eat('(');const arg=add();eat(')');return x=>funcs[name](arg(x));}throw Error('Expresión incompleta. Revisa la función.');}
+ function power(){const left=primary();if(peek()==='^'){eat('^');const right=unary();return x=>left(x)**right(x);}return left;}
+ function unary(){if(peek()==='+'){eat('+');return unary();}if(peek()==='-'){eat('-');const f=unary();return x=>-f(x);}return power();}
+ function multiply(){let f=unary();while(peek()==='*'||peek()==='/'){const op=tokens[i++].type,left=f,right=unary();f=op==='*'?x=>left(x)*right(x):x=>left(x)/right(x);}return f;}
+ function add(){let f=multiply();while(peek()==='+'||peek()==='-'){const op=tokens[i++].type,left=f,right=multiply();f=op==='+'?x=>left(x)+right(x):x=>left(x)-right(x);}return f;}
+ const f=add();if(i!==tokens.length)throw Error('Falta un operador. Escribe, por ejemplo, 2*x en lugar de 2x.');return f;
+}
+function constant(s){const v=parseExpression(s,false)(0);if(!Number.isFinite(v))throw Error('Los límites y el valor exacto deben ser números reales finitos.');return v;}
+function safeValue(f,x){const v=f(x);if(!Number.isFinite(v))throw Error('La función no tiene un valor real finito en x = '+fmt(x)+'. Revisa el dominio y las singularidades.');return v;}
+function trapecio_compuesto(f,a,b,n){if(!Number.isInteger(n)||n<1||n>10000)throw Error('n debe ser un entero entre 1 y 10000.');const h=(b-a)/n;let sum=0,c=0;for(let i=1;i<n;i++){const v=safeValue(f,a+i*h)-c,t=sum+v;c=(t-sum)-v;sum=t;}const value=h*((safeValue(f,a)+safeValue(f,b))/2+sum);if(!Number.isFinite(value))throw Error('El cálculo excede el rango numérico.');return value;}
+function fmt(v){if(v===null)return '—';if(v===0)return '0';return Math.abs(v)<1e-7||Math.abs(v)>=1e12?v.toExponential(8):Number(v.toFixed(9)).toString();}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const examples={server:['10+5*sin(pi*x/4)+exp(0.15*x)','0','12',4,'120+40/pi+(exp(1.8)-1)/0.15'],polynomial:['x^2+1','0','2',4,'14/3'],reciprocal:['1/x','3','3.6',6,'ln(3.6/3)'],exponential:['exp(x)','0','1',10,'e-1'],guide:['1/sqrt(1+x^2)','0','4',8,'ln(4+sqrt(17))'],sine:['sin(x)','0','pi',4,'2']};
+let current=null;
+function drawChart(s){
+ const {f,a,b,n}=s;const W=800,H=340,L=65,T=24,B=48,right=22;
+ const samples=Array.from({length:501},(_,i)=>{const x=a+(b-a)*i/500;return[x,safeValue(f,x)];});
+ const values=samples.map(p=>p[1]);for(let i=0;i<=n;i++)values.push(safeValue(f,a+(b-a)*i/n));
+ const lo=Math.min(0,...values),hi=Math.max(0,...values),pad=(hi-lo||1)*.12,min=lo-pad,max=hi+pad;
+ const px=x=>L+(x-a)/(b-a)*(W-L-right),py=y=>H-B-(y-min)/(max-min)*(H-T-B);let svg='';
+ for(let i=0;i<=4;i++){const v=min+(max-min)*i/4;svg+=`<line x1="${L}" y1="${py(v)}" x2="${W-right}" y2="${py(v)}" stroke="#ece7df"/><text x="${L-8}" y="${py(v)+4}" text-anchor="end">${Number(v.toPrecision(3))}</text>`;const x=a+(b-a)*i/4;svg+=`<text x="${px(x)}" y="${H-B+23}" text-anchor="middle">${Number(x.toPrecision(4))}</text>`;}
+ svg+=`<line x1="${L}" y1="${py(0)}" x2="${W-right}" y2="${py(0)}" stroke="#b9b5ad"/><text x="65" y="14">f(x)</text><text x="778" y="332">x</text>`;
+ let points=`${px(a)},${py(0)} `,path='';for(let i=0;i<=n;i++){const x=a+(b-a)*i/n,y=safeValue(f,x);points+=`${px(x)},${py(y)} `;path+=`${i?'L':'M'}${px(x)},${py(y)} `;if(n<=100)svg+=`<line x1="${px(x)}" y1="${py(0)}" x2="${px(x)}" y2="${py(y)}" stroke="#dba47a"/>`;}
+ points+=`${px(b)},${py(0)}`;svg+=`<polygon points="${points}" fill="#f4c49c" fill-opacity=".5"/><path d="${path}" fill="none" stroke="#c9976c" stroke-width="2"/>`;
+ svg+=`<path d="${samples.map(([x,y],i)=>`${i?'L':'M'}${px(x)},${py(y)}`).join(' ')}" fill="none" stroke="#d17643" stroke-width="3"/>`;
+ document.getElementById('chart').innerHTML=svg;
+}
+function solve(){
+ const get=id=>document.getElementById(id).value.trim();
+ const expression=get('function'),f=parseExpression(expression),a=constant(get('a')),b=constant(get('b')),n=Number(get('n')),exact=get('exact')===''?null:constant(get('exact'));
+ if(!Number.isInteger(n)||n<1||n>10000)throw Error('n debe ser un entero entre 1 y 10000.');if(!(b>a)||!Number.isFinite(b-a))throw Error('El límite superior b debe ser mayor que a y el intervalo debe ser finito.');
+ // Control de dominio por muestreo; no sustituye un análisis de continuidad.
+ for(let i=0;i<=1000;i++)safeValue(f,a+(b-a)*i/1000);
+ const h=(b-a)/n,value=trapecio_compuesto(f,a,b,n),error=exact===null?null:Math.abs(exact-value),percent=exact===null||exact===0?null:error/Math.abs(exact)*100;
+ const rows=[...new Set([n,4,10,50,100,1000])].sort((x,y)=>x-y).map(k=>{const v=trapecio_compuesto(f,a,b,k),e=exact===null?null:Math.abs(exact-v);return {n:k,h:(b-a)/k,value:v,error:e,percent:exact===null||exact===0?null:e/Math.abs(exact)*100};});
+ const s={expression,f,a,b,n,exact,h,value,error,percent,rows};drawChart(s);current=s;
+ document.getElementById('approx').textContent=fmt(value);document.getElementById('step').textContent=fmt(h);document.getElementById('points').textContent=`${n+1} puntos · ${n===1?'Trapecio simple':'Trapecio compuesto'}`;
+ document.getElementById('absolute').textContent=fmt(error);document.getElementById('percent').textContent=percent===null?'No definido':fmt(percent)+' %';document.getElementById('direction').textContent=exact===null?'Ingresa un valor exacto para comparar':exact===0?'División entre cero: no hay error relativo':value<exact?'Subestima el valor ingresado':value>exact?'Sobreestima el valor ingresado':'Coincide a precisión numérica';
+ document.getElementById('chart-description').textContent=`f(x) = ${expression} · intervalo [${fmt(a)}, ${fmt(b)}]`;
+ let table='',sum=0;for(let i=0;i<=n;i++){const x=a+i*h,y=safeValue(f,x),weight=i===0||i===n?1:2;if(i>0&&i<n)sum+=y;table+=`<tr><td>${i}</td><td>${fmt(x)}</td><td>${fmt(y)}</td><td>${weight}</td><td>${fmt(weight*y)}</td></tr>`;}
+ const fa=safeValue(f,a),fb=safeValue(f,b),bracket=fa+2*sum+fb;
+ document.getElementById('solution').innerHTML=`<p class="section-intro">Ejercicio resuelto: ∫ de ${fmt(a)} a ${fmt(b)} de (${escapeHTML(expression)}) dx, con n = ${n}.</p><div class="manual-grid"><article class="paper"><div class="step-title"><span>1</span><h3>Datos y ancho de paso</h3></div><p>a = ${fmt(a)}; b = ${fmt(b)}; n = ${n}.</p><div class="math-box">h = (b − a)/n = (${fmt(b)} − (${fmt(a)}))/${n} = <b>${fmt(h)}</b></div><p>xᵢ = ${fmt(a)} + i × (${fmt(h)}), para i = 0, …, ${n}.</p><div class="step-title"><span>2</span><h3>Tabla de evaluaciones y pesos</h3></div><div class="solution-table"><table><thead><tr><th>i</th><th>xᵢ</th><th>f(xᵢ)</th><th>Peso</th><th>Peso × f(xᵢ)</th></tr></thead><tbody>${table}</tbody></table></div></article><article class="paper"><div class="step-title"><span>3</span><h3>Sustituye en la fórmula</h3></div><div class="math-box">Tₙ = (h/2) [ f(x₀) + 2Σᵢ₌₁ⁿ⁻¹ f(xᵢ) + f(xₙ) ]</div><p>Suma interior Σ f(xᵢ) ≈ <b>${fmt(sum)}</b>${n===1?' (sin puntos interiores)':''}.</p><p class="calculation">T${n} ≈ (${fmt(h)}/2) [ (${fmt(fa)}) + 2(${fmt(sum)}) + (${fmt(fb)}) ]</p><p class="calculation">T${n} ≈ (${fmt(h)}/2) × (${fmt(bracket)})</p><div class="answer"><span>INTEGRAL APROXIMADA</span><strong>${fmt(value)}</strong></div><div class="step-title" style="margin-top:22px"><span>4</span><h3>Analiza el error</h3></div>${exact===null?'<p>No ingresaste un valor exacto. El resultado es una aproximación; el error absoluto real no se puede determinar con los datos ingresados.</p>':`<p>Valor exacto ingresado I = ${fmt(exact)}.</p><p>Eₐ = |I − Tₙ| ≈ <b>${fmt(error)}</b>.</p><p>${exact===0?'El error porcentual no está definido porque I = 0.':`E% = (Eₐ / |I|) × 100 ≈ <b>${fmt(percent)} %</b>.`}</p>`}<p class="muted">Las cifras mostradas están redondeadas. Se calcula con precisión de punto flotante. Usa funciones continuas en todo el intervalo; el muestreo no garantiza detectar todas las singularidades.</p></article></div>`;
+ document.getElementById('convergence-table').innerHTML=rows.map(r=>`<tr><td>${r.n}</td><td>${fmt(r.h)}</td><td>${fmt(r.value)}</td><td>${fmt(r.error)}</td><td>${r.percent===null?'—':fmt(r.percent)+' %'}</td></tr>`).join('');
+ document.getElementById('conclusion').textContent=exact===null?'Compara las aproximaciones al refinar la malla. Sin una integral exacta de referencia, su cercanía entre sí no constituye el error real.':'Los errores se calculan respecto al valor exacto que ingresaste. Para funciones con segunda derivada continua, el trapecio compuesto tiene error de orden O(h²); el error no tiene por qué disminuir en cada caso particular.';
+ document.getElementById('message').textContent='Ejercicio resuelto. Revisa el procedimiento debajo.';document.querySelectorAll('#results,#solution,#convergence-table,#chart').forEach(e=>e.classList.remove('stale'));return s;
+}
+function init(){document.getElementById('calculator').addEventListener('submit',e=>{e.preventDefault();try{solve();}catch(err){document.getElementById('message').textContent=err.message;}});document.getElementById('calculator').addEventListener('input',()=>{current=null;document.getElementById('message').textContent='Datos modificados. Pulsa Resolver ejercicio para actualizar.';document.querySelectorAll('#results,#solution,#convergence-table,#chart').forEach(e=>e.classList.add('stale'));});document.getElementById('example').addEventListener('change',e=>{const values=examples[e.target.value];['function','a','b','n','exact'].forEach((id,i)=>document.getElementById(id).value=values[i]);try{solve();}catch(err){document.getElementById('message').textContent=err.message;}});document.getElementById('print').addEventListener('click',()=>{if(!current){document.getElementById('message').textContent='Resuelve los datos actuales antes de imprimir.';document.getElementById('calculator').scrollIntoView();return;}window.print();});document.getElementById('export').addEventListener('click',()=>{if(!current){document.getElementById('message').textContent='Resuelve los datos actuales antes de exportar.';document.getElementById('calculator').scrollIntoView();return;}const s=current;const csv='\uFEFFFuncion,"'+s.expression.replace(/"/g,'""')+'"\r\na,'+s.a+'\r\nb,'+s.b+'\r\nValor exacto,'+(s.exact??'')+'\r\nn,h,Integral,Error absoluto,Error porcentual\r\n'+s.rows.map(r=>[r.n,r.h,r.value,r.error??'',r.percent??''].join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})),a=document.createElement('a');a.href=url;a.download='ejercicio_trapecio.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);});solve();}
+if(typeof document!=='undefined')init();
+
+
