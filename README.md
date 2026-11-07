@@ -23,3 +23,9 @@ Usar `*` para multiplicar y `^` para potencias. Las funciones trigonométricas s
 ## Tecnologías
 
 HTML, CSS y JavaScript, sin dependencias externas.
+
+## Simpson 1/3 compuesto y sesión 13
+
+Se puede elegir trapecio o Simpson, ingresar cualquier función compatible y obtener el desarrollo manual. Simpson requiere n par y usa los coeficientes 1,4,2,...,4,1. Compara n=2,4,6,12,24 y el valor ingresado.
+
+El campo opcional M representa una cota justificada de la cuarta derivada en todo el intervalo; permite calcular (b-a)h^4 M/180. No se obtiene mediante integración simbólica. El ejemplo energético usa M=5.132, cota conservadora válida. La página explica por qué el dato M=0.45 de la guía no garantiza el error para esa función.
