@@ -1,6 +1,12 @@
-# Calculadora de integración numérica
+# Sistema web de métodos numéricos
 
-Sistema web de la Unidad 3 de Métodos Numéricos. Resuelve integrales definidas con la regla del trapecio simple o compuesto.
+Sistema web de la Unidad 3 de Métodos Numéricos. Resuelve integrales definidas mediante trapecio y Simpson 1/3 compuesto, y problemas de valor inicial mediante Euler y Heun.
+
+## Documentación del proyecto
+
+[Descargar informe en Word de la sesión 14](documentacion/Informe_metodos_numericos_S14.docx)
+
+El informe incluye carátula, fundamento matemático, resultados verificados, instrucciones para nuevos ejercicios, capturas del sistema y las tres hojas del desarrollo manual de Euler y Heun.
 
 ## Sitio web
 
