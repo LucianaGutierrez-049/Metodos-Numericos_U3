@@ -25,3 +25,12 @@ El ejemplo Consumo energético carga n=6 y una cota conservadora M=5.132.
 M es opcional y debe acotar |f cuarta derivada| en todo el intervalo. No es el error real ni se calcula automáticamente.
 La guía proporciona M=0.45, que no es válida para su función. La sección desplegable incluye el cálculo solicitado y la justificación de una cota válida.
 El desarrollo manual se genera para cualquier función ingresada. La comparación de Simpson usa 2,4,6,12,24 y tu n. CSV incluye método y cota.
+
+SESIÓN 14 - ECUACIONES DIFERENCIALES
+Abre edo.html o el enlace EDO en la navegación principal.
+Ingresa y'=f(x,y), condición inicial x0,y0, x final y magnitud positiva h.
+h debe dividir exactamente el intervalo y se admiten hasta 1000 pasos.
+Compara Euler y Heun o selecciona uno. La solución exacta en x es opcional.
+Sin solución exacta no se inventan errores reales. Con valor exacto cero, el error porcentual no está definido.
+El sistema no despeja ecuaciones implícitas ni integra simbólicamente. Usa EDO de primer orden en forma explícita.
+Incluye tablas, desarrollo completo por paso, gráfica, impresión y CSV.
